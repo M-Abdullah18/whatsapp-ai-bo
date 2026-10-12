@@ -1,3 +1,5 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
 export default async function handler(req, res) {
   // 1. Meta Webhook Verification (GET Request)
   if (req.method === 'GET') {
@@ -23,63 +25,46 @@ export default async function handler(req, res) {
       const entry = req.body.entry?.[0];
       const changes = entry?.changes?.[0];
       const value = changes?.value;
-      const message = value?.messages?.[0];
+      const message = value?.messages?<code>?.[0];
 
-      // Ignore delivery receipts / status updates
       if (!message) {
         return res.status(200).send('EVENT_RECEIVED');
       }
 
       if (message && message.type === 'text') {
-        const from = message.from; // Sender WhatsApp Number
+        const from = message.from; 
         const userMessage = message.text.body;
 
         console.log(`Received message from ${from}: ${userMessage}`);
 
         let botReply = "Maaf kijiye, main abhi aapki baat nahi samajh saka.";
 
-        // --- Step A: Dynamic Multi-Model Gemini Fallback ---
-        const apiKey = process.env.GEMINI_API_KEY;
-        const modelsToTry = [
-          'gemini-1.5-flash',
-          'gemini-1.5-pro',
-          'gemini-2.0-flash',
-          'gemini-pro'
-        ];
-
-        let geminiSuccess = false;
-
-        for (const model of modelsToTry) {
-          try {
-            console.log(`Trying Gemini model: ${model}...`);
-            const geminiRes = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [{ parts: [{ text: userMessage }] }]
-                })
-              }
-            );
-
-            const geminiData = await geminiRes.json();
-
-            if (geminiData.candidates?.[0]?.content?.parts?.[0]?.text) {
-              botReply = geminiData.candidates[0].content.parts[0].text;
-              geminiSuccess = true;
-              console.log(`Successfully generated response using model: ${model}`);
-              break; // Output mil gaya, mazeed models test karne ki zaroorat nahi
-            } else {
-              console.error(`Error with model ${model}:`, JSON.stringify(geminiData.error || geminiData));
+        // --- Step A: Call Gemini AI using native fetch (No SDK dependency issues) ---
+        try {
+          const apiKey = process.env.GEMINI_API_KEY;
+          // Using the standard v1 endpoint which is most stable
+          const geminiRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: userMessage }] }]
+              })
             }
-          } catch (modelErr) {
-            console.error(`Failed request for model ${model}:`, modelErr);
-          }
-        }
+          );
 
-        if (!geminiSuccess) {
-          console.error("All Gemini models failed to respond.");
+          const geminiData = await geminiRes.json();
+          console.log("Gemini Raw Response:", JSON.stringify(geminiData, null, 2));
+
+          if (geminiData.candidates?.[0]?.content?.parts?.[0]?.text) {
+            botReply = geminiData.candidates[0].content.parts[0].text;
+          } else if (geminiData.error) {
+            console.error("Gemini API Error Details:", geminiData.error);
+            botReply = `Gemini Error: ${geminiData.error.message || 'Unknown error'}`;
+          }
+        } catch (geminiErr) {
+          console.error("Gemini Fetch Exception:", geminiErr);
         }
 
         console.log(`Final Bot Reply to Send: ${botReply}`);
