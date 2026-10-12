@@ -17,6 +17,9 @@ export default async function handler(req, res) {
   // 2. Incoming Messages Handling (POST Request)
   if (req.method === 'POST') {
     try {
+      // Debug log to check incoming webhook payload from Meta
+      console.log("Incoming Webhook Body:", JSON.stringify(req.body, null, 2));
+
       const entry = req.body.entry?.[0];
       const changes = entry?.changes?.[0];
       const value = changes?.value;
@@ -25,6 +28,8 @@ export default async function handler(req, res) {
       if (message && message.type === 'text') {
         const from = message.from; // Sender WhatsApp Number
         const userMessage = message.text.body;
+
+        console.log(`Received message from ${from}: ${userMessage}`);
 
         // Gemini AI Response
         const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
@@ -38,8 +43,10 @@ export default async function handler(req, res) {
         const geminiData = await geminiRes.json();
         const botReply = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "Maaf kijiye, samajh nahi aaya.";
 
+        console.log(`Gemini Reply: ${botReply}`);
+
         // Send Reply via Meta WhatsApp Cloud API
-        await fetch(`https://graph.facebook.com/v20.0/${process.env.PHONE_NUMBER_ID}/messages`, {
+        const waResponse = await fetch(`https://graph.facebook.com/v20.0/${process.env.PHONE_NUMBER_ID}/messages`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`,
@@ -52,11 +59,14 @@ export default async function handler(req, res) {
             text: { body: botReply }
           })
         });
+
+        const waData = await waResponse.json();
+        console.log("WhatsApp Send Response:", JSON.stringify(waData, null, 2));
       }
 
       return res.status(200).send('EVENT_RECEIVED');
     } catch (error) {
-      console.error(error);
+      console.error("Webhook Error:", error);
       return res.status(500).json({ error: error.message });
     }
   }
