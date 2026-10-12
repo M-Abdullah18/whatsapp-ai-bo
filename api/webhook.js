@@ -40,8 +40,9 @@ export default async function handler(req, res) {
 
         // --- Step A: Call Gemini AI ---
         try {
+          const apiKey = process.env.GEMINI_API_KEY;
           const geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -58,6 +59,8 @@ export default async function handler(req, res) {
             botReply = geminiData.candidates[0].content.parts[0].text;
           } else if (geminiData.error) {
             console.error("Gemini API Error Details:", geminiData.error);
+            // Backup reply agar API error aaye
+            botReply = "Aapka paigam mil gaya hai, lekin AI server abhi busy hai.";
           }
         } catch (geminiErr) {
           console.error("Gemini Fetch Exception:", geminiErr);
@@ -92,7 +95,7 @@ export default async function handler(req, res) {
       return res.status(200).send('EVENT_RECEIVED');
     } catch (error) {
       console.error("Webhook Execution Error:", error);
-      return res.status(200).send('EVENT_RECEIVED'); // Meta ko 200 hi bhejen taake retry loop na banean
+      return res.status(200).send('EVENT_RECEIVED');
     }
   }
 
