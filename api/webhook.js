@@ -38,30 +38,48 @@ export default async function handler(req, res) {
 
         let botReply = "Maaf kijiye, main abhi aapki baat nahi samajh saka.";
 
-        // --- Step A: Call Gemini AI ---
-        try {
-          const apiKey = process.env.GEMINI_API_KEY;
-          const geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{ parts: [{ text: userMessage }] }]
-              })
+        // --- Step A: Dynamic Multi-Model Gemini Fallback ---
+        const apiKey = process.env.GEMINI_API_KEY;
+        const modelsToTry = [
+          'gemini-1.5-flash',
+          'gemini-1.5-pro',
+          'gemini-2.0-flash',
+          'gemini-pro'
+        ];
+
+        let geminiSuccess = false;
+
+        for (const model of modelsToTry) {
+          try {
+            console.log(`Trying Gemini model: ${model}...`);
+            const geminiRes = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: userMessage }] }]
+                })
+              }
+            );
+
+            const geminiData = await geminiRes.json();
+
+            if (geminiData.candidates?.[0]?.content?.parts?.[0]?.text) {
+              botReply = geminiData.candidates[0].content.parts[0].text;
+              geminiSuccess = true;
+              console.log(`Successfully generated response using model: ${model}`);
+              break; // Output mil gaya, mazeed models test karne ki zaroorat nahi
+            } else {
+              console.error(`Error with model ${model}:`, JSON.stringify(geminiData.error || geminiData));
             }
-          );
-
-          const geminiData = await geminiRes.json();
-          console.log("Gemini Raw Response:", JSON.stringify(geminiData, null, 2));
-
-          if (geminiData.candidates?.[0]?.content?.parts?.[0]?.text) {
-            botReply = geminiData.candidates[0].content.parts[0].text;
-          } else if (geminiData.error) {
-            console.error("Gemini API Error Details:", geminiData.error);
+          } catch (modelErr) {
+            console.error(`Failed request for model ${model}:`, modelErr);
           }
-        } catch (geminiErr) {
-          console.error("Gemini Fetch Exception:", geminiErr);
+        }
+
+        if (!geminiSuccess) {
+          console.error("All Gemini models failed to respond.");
         }
 
         console.log(`Final Bot Reply to Send: ${botReply}`);
