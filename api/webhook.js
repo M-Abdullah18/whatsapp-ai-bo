@@ -59,8 +59,6 @@ export default async function handler(req, res) {
             botReply = geminiData.candidates[0].content.parts[0].text;
           } else if (geminiData.error) {
             console.error("Gemini API Error Details:", geminiData.error);
-            // Backup reply agar API error aaye
-            botReply = "Aapka paigam mil gaya hai, lekin AI server abhi busy hai.";
           }
         } catch (geminiErr) {
           console.error("Gemini Fetch Exception:", geminiErr);
