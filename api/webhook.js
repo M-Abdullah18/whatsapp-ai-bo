@@ -1,5 +1,3 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
 export default async function handler(req, res) {
   // 1. Meta Webhook Verification (GET Request)
   if (req.method === 'GET') {
@@ -25,7 +23,7 @@ export default async function handler(req, res) {
       const entry = req.body.entry?.[0];
       const changes = entry?.changes?.[0];
       const value = changes?.value;
-      const message = value?.messages?<code>?.[0];
+      const message = value?.messages?.[0];
 
       if (!message) {
         return res.status(200).send('EVENT_RECEIVED');
@@ -37,39 +35,10 @@ export default async function handler(req, res) {
 
         console.log(`Received message from ${from}: ${userMessage}`);
 
-        let botReply = "Maaf kijiye, main abhi aapki baat nahi samajh saka.";
+        // Bot Intro & Autonomous Test Response
+        let botReply = `Salam! Main aapka autonomous WhatsApp test bot hoon. Aapka message mil gaya hai: "${userMessage}". System bilkul fit kaam kar raha hai! 🚀`;
 
-        // --- Step A: Call Gemini AI using native fetch (No SDK dependency issues) ---
-        try {
-          const apiKey = process.env.GEMINI_API_KEY;
-          // Using the standard v1 endpoint which is most stable
-          const geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{ parts: [{ text: userMessage }] }]
-              })
-            }
-          );
-
-          const geminiData = await geminiRes.json();
-          console.log("Gemini Raw Response:", JSON.stringify(geminiData, null, 2));
-
-          if (geminiData.candidates?.[0]?.content?.parts?.[0]?.text) {
-            botReply = geminiData.candidates[0].content.parts[0].text;
-          } else if (geminiData.error) {
-            console.error("Gemini API Error Details:", geminiData.error);
-            botReply = `Gemini Error: ${geminiData.error.message || 'Unknown error'}`;
-          }
-        } catch (geminiErr) {
-          console.error("Gemini Fetch Exception:", geminiErr);
-        }
-
-        console.log(`Final Bot Reply to Send: ${botReply}`);
-
-        // --- Step B: Send Reply via Meta WhatsApp Cloud API ---
+        // --- Send Reply via Meta WhatsApp Cloud API ---
         const phoneId = process.env.PHONE_NUMBER_ID || '1446876238489546';
         
         const waResponse = await fetch(
