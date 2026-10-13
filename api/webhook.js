@@ -41,9 +41,9 @@ export default async function handler(req, res) {
                   botReply = "api not working";
                 } else {
                   try {
-                    // Correct REST Endpoint with '-latest' tag
+                    // STABLE v1 Endpoint (Gemini 2.0 Flash)
                     const aiResponse = await fetch(
-                      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${geminiApiKey}`,
+                      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
                       {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
