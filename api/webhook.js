@@ -20,46 +20,57 @@ export default async function handler(req, res) {
     try {
       console.log("Incoming Webhook Body:", JSON.stringify(req.body, null, 2));
 
-      const entry = req.body.entry?.[0];
-      const changes = entry?.changes?.[0];
-      const value = changes?.value;
-      const message = value?.messages?.[0];
+      // FIX: Meta ek hi POST mein kai entry/changes/messages bhej sakta hai.
+      // Pehle sirf [0] wala message handle hota tha, baaki chup-chaap gir jate the.
+      for (const entry of req.body.entry ?? []) {
+        for (const changes of entry.changes ?? []) {
+          const value = changes?.value;
 
-      if (!message) {
-        return res.status(200).send('EVENT_RECEIVED');
-      }
+          for (const message of value?.messages ?? []) {
+            // FIX: ek message fail ho to baaki messages na rukein
+            try {
+              if (message && message.type === 'text') {
+                const from = message.from; 
+                const userMessage = message.text.body;
 
-      if (message && message.type === 'text') {
-        const from = message.from; 
-        const userMessage = message.text.body;
+                console.log(`Received message from ${from}: ${userMessage}`);
 
-        console.log(`Received message from ${from}: ${userMessage}`);
+                // Bot Intro & Autonomous Test Response
+                let botReply = `Salam! Main aapka autonomous WhatsApp test bot hoon. Aapka message mil gaya hai: "${userMessage}". System bilkul fit kaam kar raha hai! 🚀`;
 
-        // Bot Intro & Autonomous Test Response
-        let botReply = `Salam! Main aapka autonomous WhatsApp test bot hoon. Aapka message mil gaya hai: "${userMessage}". System bilkul fit kaam kar raha hai! 🚀`;
+                // --- Send Reply via Meta WhatsApp Cloud API ---
+                const phoneId = process.env.PHONE_NUMBER_ID || '1446876238489546';
+                
+                const waResponse = await fetch(
+                  `https://graph.facebook.com/v26.0/${phoneId}/messages`,
+                  {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`,
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                      messaging_product: 'whatsapp',
+                      to: from,
+                      type: 'text',
+                      text: { body: botReply }
+                    })
+                  }
+                );
 
-        // --- Send Reply via Meta WhatsApp Cloud API ---
-        const phoneId = process.env.PHONE_NUMBER_ID || '1446876238489546';
-        
-        const waResponse = await fetch(
-          `https://graph.facebook.com/v26.0/${phoneId}/messages`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              messaging_product: 'whatsapp',
-              to: from,
-              type: 'text',
-              text: { body: botReply }
-            })
+                const waData = await waResponse.json();
+                console.log("WhatsApp API Send Response:", JSON.stringify(waData, null, 2));
+
+                // FIX: pehle send fail hone par bhi sirf normal log aata tha, ab saaf error dikhega
+                if (!waResponse.ok) {
+                  console.error(`WhatsApp API Send FAILED (HTTP ${waResponse.status}) for ${from}:`, JSON.stringify(waData?.error ?? waData));
+                }
+              }
+            } catch (msgError) {
+              console.error(`Error handling message ${message?.id}:`, msgError);
+            }
           }
-        );
-
-        const waData = await waResponse.json();
-        console.log("WhatsApp API Send Response:", JSON.stringify(waData, null, 2));
+        }
       }
 
       return res.status(200).send('EVENT_RECEIVED');
